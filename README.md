@@ -1,11 +1,15 @@
 # Doc2pptx
 
 
+Painpoint to be resolved with this tool:
+- As a manager, usually I'm asked to create report to someone (e.g. my Boss, my team), and usually PPTX is a good solution to present my idea in structure. However it's quite boring to write PPTX with format. Right after the report, I'm also expected to create a yammer to publish more information.
+- As a trainer, I'm boring to create a PPTX with collected data,  and strucuture my thinking to specific audiances.
 
 
 
-
-
+Idea:
+1. Put all material to LLM, and expect it to create the essay outline in Markdown.
+2. Convert Markdown to PPTX.
 
 
 
