@@ -1,1 +1,3 @@
 python-pptx
+gradio==3.32.2
+langchain
