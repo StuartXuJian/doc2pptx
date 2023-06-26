@@ -54,6 +54,9 @@ LLM_MODEL = "gpt-3.5-turbo" # 可选 ↓↓↓
 # 设置gradio的并行线程数（不需要修改）
 CONCURRENT_COUNT = 100
 
+# 设置是否用FreeGPT
+FreeGPT = True
+
 def update_ui(chatbot, history, msg='Normal', **kwargs):  # 刷新界面
     yield chatbot, history, msg, ""
 
@@ -71,9 +74,17 @@ def new_predict(txt, chatbot, history):
         MessagesPlaceholder(variable_name="history"),
         HumanMessagePromptTemplate.from_template("{input}")
     ])
+    
+    #请以```来形成代码段的方式，提供代码，请以markdown·格式代码段的方式来写
+
+    if FreeGPT:
+        api_base = "https://api.chatanywhere.com.cn/v1"
+    else:
+        api_base = "https://api.openai.com/v1/"
+
 
     langchain.debug = True
-    llm = ChatOpenAI(temperature=0, openai_api_base="https://api.chatanywhere.com.cn/v1", openai_api_key=API_KEY, proxies=proxies)
+    llm = ChatOpenAI(temperature=0, openai_api_base=api_base, openai_api_key=API_KEY, proxies=proxies)
     memory = ConversationBufferMemory(return_messages=True)
     conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
     gpt_says = conversation.predict(input=txt)
