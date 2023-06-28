@@ -1937,6 +1937,8 @@ def createTitleOrSectionSlide(
 ):
     marginBase = processingOptions.getCurrentOption("marginBase")
 
+    ####### layout=10
+
     slide = addSlide(presentation, presentation.slide_layouts[layout], None)
 
     # Add title
@@ -4642,7 +4644,8 @@ def main():
     slideNumber = 1
 
     global clickableGraphicRegex
-    bulletRegex = re.compile("^(\s)*(\*)(.*)")
+    bulletRegex_star = re.compile("^(\s)*(\*)(.*)")
+    bulletRegex_minus = re.compile("^(\s)*(-)(.*)")
     numberRegex = re.compile("^(\s)*(\d+)\.(.*)")
     metadataRegex = re.compile("^(.+):(.+)")
 
@@ -4680,6 +4683,8 @@ def main():
             ["blanklayout", 6],
         ]
     )
+
+    global abbrevDictionary, abbrevRunsDictionary, footnoteRunsDictionary
 
     # Abbreviation Dictionary
     abbrevDictionary = {}
@@ -5541,11 +5546,13 @@ def main():
 
         print(f"\nUsing {slideTemplateFile} as base for presentation")
 
+    global templateSlideCount
+
     if slideTemplateFile == "":
         # Use default slide deck that comes with python-pptx as base
         prs = Presentation()
         print("\nNo slide to document metadata on. Continuing without it.")
-
+        
         templateSlideCount = 0
     else:
         # Use user-specified presentation as base
@@ -5648,7 +5655,7 @@ def main():
 
         else:
             # Previous line was not blank and nor is this one so consider concatenation
-            if line.lstrip()[0] not in "*#\|0123456789!":
+            if line.lstrip()[0] not in "-*#\|0123456789!":
                 if (
                     (previousLine[0:2] != "# ")
                     & (previousLine[0:3] != "## ")
@@ -5772,50 +5779,51 @@ def main():
             inTitle = True
 
         # Taskpaper task
-        if line[:1] == "-":
-            # Get start of attributes
-            attributesStart = line.find("@")
+        # if line[:1] == "-":
+        #     # Get start of attributes
+        #     attributesStart = line.find("@")
 
-            # Get text up to attributes
-            if attributesStart == -1:
-                text = line[2:]
-            else:
-                text = line[2 : attributesStart - 1]
+        #     # Get text up to attributes
+        #     if attributesStart == -1:
+        #         text = line[2:]
+        #     else:
+        #         text = line[2 : attributesStart - 1]
 
-            # Attempt to extract @due information
-            startDue = line.find("@due(")
-            if startDue > -1:
-                startDue += 5
-                endDue = line.find(")", startDue)
-                if endDue > -1:
-                    dueDate = line[startDue:endDue]
-            else:
-                dueDate = ""
+        #     # Attempt to extract @due information
+        #     startDue = line.find("@due(")
+        #     if startDue > -1:
+        #         startDue += 5
+        #         endDue = line.find(")", startDue)
+        #         if endDue > -1:
+        #             dueDate = line[startDue:endDue]
+        #     else:
+        #         dueDate = ""
 
-            # Attempt to extract @tags information
-            startTags = line.find("@tags(")
-            if startTags > -1:
-                startTags += 6
-                endTags = line.find(")", startTags)
-                if endTags > -1:
-                    tags = line[startTags:endTags]
-            else:
-                tags = ""
+        #     # Attempt to extract @tags information
+        #     startTags = line.find("@tags(")
+        #     if startTags > -1:
+        #         startTags += 6
+        #         endTags = line.find(")", startTags)
+        #         if endTags > -1:
+        #             tags = line[startTags:endTags]
+        #     else:
+        #         tags = ""
 
-            # Attempt to extract @done information
-            startDone = line.find("@done(")
-            if startDone > -1:
-                startDone += 6
-                endDone = line.find(")", startDone)
-                if endDone > -1:
-                    done = line[startDone:endDone]
-            else:
-                done = ""
+        #     # Attempt to extract @done information
+        #     startDone = line.find("@done(")
+        #     if startDone > -1:
+        #         startDone += 6
+        #         endDone = line.find(")", startDone)
+        #         if endDone > -1:
+        #             done = line[startDone:endDone]
+        #     else:
+        #         done = ""
 
-            tasks.append([slideNumber + 1, text, dueDate, tags, done])
-            inTitle = False
-
-        elif line.startswith("<a id="):
+        #     tasks.append([slideNumber + 1, text, dueDate, tags, done])
+        #     inTitle = False
+        
+        # elif line.startswith("<a id="):
+        if line.startswith("<a id="):
             # Anchor on whatever slide we're on
             if hrefMatch := anchorRegex.match(line):
                 href = hrefMatch.group(1)
@@ -6208,6 +6216,7 @@ def main():
                         code,
                         sequence,
                     )
+
                     slideNumber, slide, sequence = createSlide(prs, slideNumber, slideInfo) # May fail here due to empty template
                     
                     # Register the previous slide's href - if there was one
@@ -6255,7 +6264,7 @@ def main():
             if (href != "") & (href in slideHrefs.keys()):
                 print(f"Heading Reference redefined: '{href}' for slide {slideNumber}")
 
-        elif match := bulletRegex.match(line):
+        elif match := (bulletRegex_star.match(line) or bulletRegex_minus.match(line)):
             # Bulleted list
             bulletLine = match.group(3).lstrip()
             bulletLevel = calculateIndentationLevel(

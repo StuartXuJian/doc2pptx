@@ -55,7 +55,7 @@ LLM_MODEL = "gpt-3.5-turbo" # 可选 ↓↓↓
 CONCURRENT_COUNT = 100
 
 # 设置是否用FreeGPT
-FreeGPT = True
+FREEGPT_INUSE = True
 
 def update_ui(chatbot, history, msg='Normal', **kwargs):  # 刷新界面
     yield chatbot, history, msg, ""
@@ -69,15 +69,15 @@ def new_predict(txt, chatbot, history):
 
     prompt = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(
-            "Please reply always in Markdown format."
+            '''Please reply always using markdown format in a code block inside two ```. 
+            Reply using from 1st to 3rd levels headings and content under the 3rd level headings. 
+            Just the code, no other explanations are required.'''
         ),
         MessagesPlaceholder(variable_name="history"),
         HumanMessagePromptTemplate.from_template("{input}")
     ])
     
-    #请以```来形成代码段的方式，提供代码，请以markdown·格式代码段的方式来写
-
-    if FreeGPT:
+    if FREEGPT_INUSE:
         api_base = "https://api.chatanywhere.com.cn/v1"
     else:
         api_base = "https://api.openai.com/v1/"
@@ -87,6 +87,7 @@ def new_predict(txt, chatbot, history):
     llm = ChatOpenAI(temperature=0, openai_api_base=api_base, openai_api_key=API_KEY, proxies=proxies)
     memory = ConversationBufferMemory(return_messages=True)
     conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
+    print(f"User input: {txt}")
     gpt_says = conversation.predict(input=txt)
     print(gpt_says)
     
@@ -121,6 +122,7 @@ def main():
                 with gr.Row():
                     resetBtn = gr.Button("Reset", variant="secondary"); resetBtn.style(size="sm")
                     stopBtn = gr.Button("Stop", variant="secondary"); stopBtn.style(size="sm")
+                with gr.Row():
                     clearBtn = gr.Button("Clear", variant="secondary", visible=True); clearBtn.style(size="sm")
                 with gr.Row():
                     status = gr.Markdown(f"Tips: Submit with \"Enter\" directly, new line with \"Shift+Enter\"。")
