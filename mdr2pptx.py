@@ -153,6 +153,7 @@ class AudioVideoInfo:
         else:
             self.poster = None
 
+import random
 
 # Note: Options stored with lower case keys
 class ProcessingOptions:
@@ -177,6 +178,12 @@ class ProcessingOptions:
 
     def getCurrentOption(self, optionName):
         return self.currentOptions[optionName.lower()][-1]
+    
+    def getFirstCurrentOption(self, optionName):
+        return self.currentOptions[optionName.lower()][0]
+    
+    def getRandomCurrentOption(self, optionName):
+        return random.choice(self.currentOptions[optionName.lower()])
 
     # Note: Can't pop to an empty stack. Will always have default available
     def popCurrentOption(self, optionName):
@@ -202,6 +209,13 @@ class ProcessingOptions:
 
         self.setPresentationOption(optionName, value)
 
+        self.setCurrentOption(optionName, value)
+    
+    def changeOptionAndDefaultValues(self, optionName, value):
+        key = optionName.lower()
+        self.setDefaultOption(optionName, value)
+        self.setPresentationOption(optionName, value)
+        self.currentOptions[key] = []
         self.setCurrentOption(optionName, value)
 
     def setOptionValuesArray(self, optionArray):
@@ -1937,7 +1951,7 @@ def createTitleOrSectionSlide(
 ):
     marginBase = processingOptions.getCurrentOption("marginBase")
 
-    layout=2
+    layout=1
 
     slide = addSlide(presentation, presentation.slide_layouts[layout], None)
 
@@ -3861,7 +3875,7 @@ def delinkify(text):
         return (text, "")
 
 
-def createTOCSlide(presentation, slideNumber, titleText, bullets, tocStyle):
+def createTOCSlide(presentation, slideNumber, titleText, bullets, tocStyle, slideInfo):
     global SectionSlides
     titleOnlyLayout = processingOptions.getCurrentOption("titleOnlyLayout")
     blankLayout = processingOptions.getCurrentOption("blankLayout")
@@ -3881,7 +3895,7 @@ def createTOCSlide(presentation, slideNumber, titleText, bullets, tocStyle):
 
     if tocStyle == "plain":
         if titleText != tocTitle:
-            slide = createTitleOrSectionSlide(
+            slide = (
                 presentation,
                 slideNumber,
                 titleText,
@@ -4107,6 +4121,7 @@ def createSlide(presentation, slideNumber, slideInfo):
                 slideInfo.titleText,
                 slideInfo.bullets,
                 tocStyle,
+                slideInfo
             )
         elif (abstractTitle != "") & (abstractTitle == slideInfo.titleText):
             # This is an abstract slide
@@ -4133,6 +4148,7 @@ def createSlide(presentation, slideNumber, slideInfo):
                 slideInfo.titleText,
                 slideInfo.bullets,
                 tocStyle,
+                slideInfo
             )
         else:
             slide = createTitleOrSectionSlide(
@@ -4607,6 +4623,57 @@ def Starting_info():
     print(f"funnel: {funnel.__version__}")
 
 
+def AutoSelectSlideTemplate(prsentation):
+    titleslidelayoutSet = False
+    sectionSlideLayoutSet = False
+    contentSlideLayoutSet = False
+    titleOnlyLayoutSet = False
+    blanklayoutSet = False
+    
+    print("Slide template names:")
+    for slide_master in prsentation.slide_masters:
+            print(prsentation.slide_master.name)
+            idx = 0
+            for slide_layout in slide_master.slide_layouts:
+                print (f"{idx} {slide_layout.name}")
+                idx += 1
+                
+                # Use the 1st suitable template
+                if "cover" in slide_layout.name.lower():
+                    if titleslidelayoutSet:
+                        processingOptions.setOptionValues("titleslidelayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        # If it's set the first time, clean default options
+                        titleslidelayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("titleslidelayout", slide_master.slide_layouts.index(slide_layout))
+                elif "divider" in slide_layout.name.lower():
+                    if sectionSlideLayoutSet:
+                        processingOptions.setOptionValues("sectionSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        sectionSlideLayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("sectionSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                elif "text" in slide_layout.name.lower():
+                    if contentSlideLayoutSet:
+                        processingOptions.setOptionValues("contentSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        contentSlideLayoutSet = True    
+                        processingOptions.changeOptionAndDefaultValues("contentSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                elif "title" in slide_layout.name.lower(): 
+                    if titleOnlyLayoutSet:
+                        processingOptions.setOptionValues("titleOnlyLayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        titleOnlyLayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("titleOnlyLayout", slide_master.slide_layouts.index(slide_layout))
+                elif "blank" in slide_layout.name.lower(): 
+                    if blanklayoutSet:
+                        processingOptions.setOptionValues("blanklayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        blanklayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("blanklayout", slide_master.slide_layouts.index(slide_layout))
+
+    print(processingOptions.currentOptions)
+    print(processingOptions.defaultOptions)
+
 def main():
 
     start_time = time.time()
@@ -4976,6 +5043,7 @@ def main():
         ]
     )
 
+    global TOCEntries
     TOCEntries = []
 
 
@@ -5559,10 +5627,9 @@ def main():
         # Use user-specified presentation as base
         prs = Presentation(slideTemplateFile)
 
-        # Print master board layouts
-        for slide_master in prs.slide_masters:
-            print(f"Slide Master Layout: {slide_master.name}")
-
+        # Find proper slide lay out
+        AutoSelectSlideTemplate(prs)
+            
         # If there is a slide to use fill it with metadata
         templateSlideCount = len(prs.slides)
         if templateSlideCount > 0:
