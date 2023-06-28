@@ -1937,7 +1937,7 @@ def createTitleOrSectionSlide(
 ):
     marginBase = processingOptions.getCurrentOption("marginBase")
 
-    ####### layout=10
+    layout=2
 
     slide = addSlide(presentation, presentation.slide_layouts[layout], None)
 
@@ -5051,6 +5051,7 @@ def main():
 
     # List of footnote definitions. Each is a (ref, text) pair.
     # Also array of names - for quick searching
+    global footnoteDefinitions, footnoteReferences
     footnoteDefinitions = []
     footnoteReferences = []
 
@@ -5557,6 +5558,10 @@ def main():
     else:
         # Use user-specified presentation as base
         prs = Presentation(slideTemplateFile)
+
+        # Print master board layouts
+        for slide_master in prs.slide_masters:
+            print(f"Slide Master Layout: {slide_master.name}")
 
         # If there is a slide to use fill it with metadata
         templateSlideCount = len(prs.slides)
