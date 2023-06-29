@@ -752,6 +752,7 @@ def makeNumberedListItem(p):
         pPr = OxmlElement("a:pPr")
         p._element.insert(0, pPr)
 
+    # Set Font, need to be optimized to use original template font
     buFont = OxmlElement("a:buFont")
     buFont.set("typeface", "+mj-lt")
     pPr.append(buFont)
@@ -760,6 +761,29 @@ def makeNumberedListItem(p):
     buAutoNum.set("type", "arabicPeriod")
     pPr.append(buAutoNum)
 
+def makeBulletedListItem(p):
+    if (
+        p._element.getchildren()[0].tag
+        == "{http://schemas.openxmlformats.org/drawingml/2006/main}pPr"
+    ):
+        pPr = p._element.getchildren()[0]
+        if len(pPr.getchildren()) > 0:
+            # Remove Default Text Run Properties element - if present
+            x = pPr.getchildren()[0]
+            if x.tag == "{http://schemas.openxmlformats.org/drawingml/2006/main}defRPr":
+                pPr.remove(x)
+    else:
+        pPr = OxmlElement("a:pPr")
+        p._element.insert(0, pPr)
+
+    # Set Font, need to be optimized to use original template font
+    buFont = OxmlElement("a:buFont")
+    buFont.set("typeface", "+mj-lt")
+    pPr.append(buFont)
+
+    buAutoNum = OxmlElement("a:buChar")
+    buAutoNum.set("char", "•")
+    pPr.append(buAutoNum)
 
 # Add a drop shadow to a shape
 def createShadow(shape):
@@ -1043,6 +1067,8 @@ def renderText(shape, bullets):
 
         if bullet[2] == "numbered":
             makeNumberedListItem(p)
+        elif bullet[2] == "bulleted":
+            makeBulletedListItem(p)
 
     tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
@@ -2543,6 +2569,11 @@ def createContentSlide(presentation, slideNumber, slideInfo):
         haveBulletsCards = True
 
     slide = addSlide(presentation, presentation.slide_layouts[slideLayout], slideInfo)
+
+    # Change margin to body shape margin
+    bodyShape = findBodyShape(slide)
+    # print(bodyShape.name)
+    marginBase = max(marginBase, bodyShape.left)
 
     # Check for table / graphics content
     if slideInfo.tableRows == []:
@@ -4214,7 +4245,7 @@ def createSlide(presentation, slideNumber, slideInfo):
             )
 
             if wantHyperLink:
-                createShapeHyperlinkAndTooltip(leftFooter, prs.lastSectionSlide, "")
+                createShapeHyperlinkAndTooltip(leftFooter, presentation.lastSectionSlide, "")
 
             for fp in leftFooter.text_frame.paragraphs:
                 fp.alignment = PP_ALIGN.LEFT
@@ -4628,273 +4659,9 @@ def Starting_info():
     print(f"funnel: {funnel.__version__}")
 
 
-def AutoSelectSlideTemplate(prsentation):
-    titleslidelayoutSet = False
-    sectionSlideLayoutSet = False
-    contentSlideLayoutSet = False
-    titleOnlyLayoutSet = False
-    blanklayoutSet = False
-    
-    print("Slide template names:")
-    for slide_master in prsentation.slide_masters:
-            print(prsentation.slide_master.name)
-            idx = 0
-            for slide_layout in slide_master.slide_layouts:
-                print (f"{idx} {slide_layout.name}")
-                idx += 1
-                
-                # Use the 1st suitable template
-                if "cover" in slide_layout.name.lower():
-                    if titleslidelayoutSet:
-                        processingOptions.setOptionValues("titleslidelayout", slide_master.slide_layouts.index(slide_layout))
-                    else:
-                        # If it's set the first time, clean default options
-                        titleslidelayoutSet = True
-                        processingOptions.changeOptionAndDefaultValues("titleslidelayout", slide_master.slide_layouts.index(slide_layout))
-                elif "divider" in slide_layout.name.lower():
-                    if sectionSlideLayoutSet:
-                        processingOptions.setOptionValues("sectionSlideLayout", slide_master.slide_layouts.index(slide_layout))
-                    else:
-                        sectionSlideLayoutSet = True
-                        processingOptions.changeOptionAndDefaultValues("sectionSlideLayout", slide_master.slide_layouts.index(slide_layout))
-                elif "text" in slide_layout.name.lower():
-                    if contentSlideLayoutSet:
-                        processingOptions.setOptionValues("contentSlideLayout", slide_master.slide_layouts.index(slide_layout))
-                    else:
-                        contentSlideLayoutSet = True    
-                        processingOptions.changeOptionAndDefaultValues("contentSlideLayout", slide_master.slide_layouts.index(slide_layout))
-                elif "title" in slide_layout.name.lower(): 
-                    if titleOnlyLayoutSet:
-                        processingOptions.setOptionValues("titleOnlyLayout", slide_master.slide_layouts.index(slide_layout))
-                    else:
-                        titleOnlyLayoutSet = True
-                        processingOptions.changeOptionAndDefaultValues("titleOnlyLayout", slide_master.slide_layouts.index(slide_layout))
-                elif "blank" in slide_layout.name.lower(): 
-                    if blanklayoutSet:
-                        processingOptions.setOptionValues("blanklayout", slide_master.slide_layouts.index(slide_layout))
-                    else:
-                        blanklayoutSet = True
-                        processingOptions.changeOptionAndDefaultValues("blanklayout", slide_master.slide_layouts.index(slide_layout))
-
-    # May have problem for new template
-    processingOptions.setOptionValues("adjustTitles", False)
-
-def main():
-
-    start_time = time.time()
-
-    Starting_info()
-
-    input_file = []
-
-    global processingOptions
-    processingOptions = ProcessingOptions()
-
-    if len(sys.argv) > 2:
-        # Have input file as well as output file
-        input_filename = sys.argv[1]
-        output_filename = sys.argv[2]
-
-        if Path(input_filename).exists():
-            input_path = Path(input_filename)
-            with input_path.open(encoding="utf-8") as file:
-                input_file = file.readlines()
-        else:
-            print(f"Input file:{input_filename} specified but does not exist. Terminating.")
-    elif len(sys.argv) == 1:
-        print("No parameters. Terminating")
-        sys.exit()
-    else:
-        output_filename = sys.argv[1]
-
-        input_file = sys.stdin.readlines()
-
-    if len(input_file) == 0:
-        print("Empty input file. Terminating")
-        sys.exit()
-
-    slideNumber = 1
-
-    global clickableGraphicRegex
-    bulletRegex_star = re.compile("^(\s)*(\*)(.*)")
-    bulletRegex_minus = re.compile("^(\s)*(-)(.*)")
-    numberRegex = re.compile("^(\s)*(\d+)\.(.*)")
-    metadataRegex = re.compile("^(.+):(.+)")
-
-    graphicRE = "!\[(.*?)\]\((.+?)\)"
-    graphicRegex = re.compile(graphicRE)
-
-    clickableGraphicRE = "\[" + graphicRE + "\]\((.+?)\)"
-    clickableGraphicRegex = re.compile(clickableGraphicRE)
-
-    videoRE = "<video (.*?)></video>"
-    videoRegex = re.compile(videoRE)
-
-    audioRE = "<audio (.*?)></audio>"
-    audioRegex = re.compile(audioRE)
-
-    global linkRegex, slideHrefRegex, spanClassRegex, spanStyleRegex,indirectReferenceUsageRegex
-
-    linkRegex = re.compile("^\[(.+)\]\((.+)\)")
-    footnoteDefinitionRegex = re.compile("^\[\^(.+?)\]: (.+)")
-    spanClassRegex = re.compile("<span( )*class=")
-    spanStyleRegex = re.compile("<span( )*style=")
-    slideHrefRegex = re.compile("(.+)\[(.+)\]$")
-    anchorRegex = re.compile("^<a id=[\"'](.+)[\"']></a>")
-    dynamicMetadataRegex = re.compile("^<!-- md2pptx: (.+): (.+) -->")
-    indirectReferenceAnchorRegex = re.compile("^\[(.+?)\]: (.+)")
-    indirectReferenceUsageRegex = re.compile("[(.+?)]\[(.+?)]")
-
-    # Default slide layout enumeration
-    processingOptions.setOptionValuesArray(
-        [
-            ["titleSlideLayout", 0],
-            ["sectionSlideLayout", 1],
-            ["contentSlideLayout", 2],
-            ["titleOnlyLayout", 5],
-            ["blanklayout", 6],
-        ]
-    )
-
-    global abbrevDictionary, abbrevRunsDictionary, footnoteRunsDictionary
-
-    # Abbreviation Dictionary
-    abbrevDictionary = {}
-
-    # Abbreviation Runs Dictionary
-    abbrevRunsDictionary = {}
-
-    # Footnote runs Dictionary
-    footnoteRunsDictionary = {}
-
-    # Extract metadata
-    metadata_lines = []
-    afterMetadataAndHTML = []
-
-
-    TOCruns = []
-    SectionSlides = {}
-
-    inMetadata = True
-    in_comment = False
-    inHTML = False
-    inCode = False
-
-    # Pass 1: Strip out comments and metadata, storing the latter
-    # Use config.md file as defalut value
-    # Later to use parameter from UI to cover this default value
-    if Path("./config.md").exists():
-        with Path("./config.md").open(encoding="utf-8") as f:
-            cfg_file = f.readlines()
-    else:
-        print("Config.md file does not exist. Terminating.")
-
-    # load configuration
-    for line in cfg_file:
-        if line.lstrip().startswith("<!--"):
-            if line.rstrip().endswith("-->"):
-                # Note: Not taking text after end of comment
-                continue
-            else:
-                in_comment = True
-                continue
-
-        elif line.rstrip().endswith("-->"):
-            # Note: Not taking text after end of comment
-            in_comment = False
-            continue
-
-        elif in_comment is True:
-            continue
-
-        if inMetadata is True:
-            # Line goes to metadata array
-            metadata_lines.append(line)
-
-    for line in input_file:
-        if line.lstrip().startswith("<!-- md2pptx: "):
-            # md2pptx dynamic metadata so keep it
-            afterMetadataAndHTML.append(line)
-
-        if line.lstrip().startswith("<!--"):
-            if line.rstrip().endswith("-->"):
-                # Note: Not taking text after end of comment
-                continue
-            else:
-                in_comment = True
-                continue
-
-        elif line.rstrip().endswith("-->"):
-            # Note: Not taking text after end of comment
-            in_comment = False
-            continue
-
-        elif in_comment is True:
-            continue
-
-        elif (line.lstrip()[:1] == "<") & (inCode is False):
-            lineLstrip = line.lstrip()
-            if startswithOneOf(lineLstrip, ["<a id=", "<span "]):
-                # Line goes to post-metadata array
-                afterMetadataAndHTML.append(line)
-
-            elif startswithOneOf(lineLstrip, ["<code>", "<pre>"]):
-                inCode = True
-                afterMetadataAndHTML.append(line)
-
-            elif startswithOneOf(lineLstrip, ["</code>", "</pre>"]):
-                inCode = False
-                afterMetadataAndHTML.append(line)
-
-            elif startswithOneOf(lineLstrip, ["<video ", "<audio "]):
-                # Line goes to post-metadata array
-                afterMetadataAndHTML.append(line)
-
-            else:
-                inHTML = True
-
-            continue
-
-        elif line.startswith("```"):
-            inCode = ~inCode
-            # afterMetadataAndHTML.append(line)
-
-        elif line.lstrip()[:1] == "#":
-            # Heading has triggered end of metadata and end of HTML
-            inMetadata = False
-            inHTML = False
-
-        elif inHTML:
-            continue
-
-        elif inCode:
-            afterMetadataAndHTML.append(line)
-            continue
-
-        elif line == "\n":
-            # Blank line has triggered end of metadata
-            inMetadata = False
-
-        if inMetadata is True:
-            # Line goes to metadata array
-            metadata_lines.append(line)
-
-        else:
-            # Line goes to post-metadata array
-            afterMetadataAndHTML.append(line)
-
-    global want_numbers_headings, want_numbers_content
-    want_numbers_headings = False
-    want_numbers_content = False
-
+def setDefaultOptions(processingOptions):
     processingOptions.setOptionValues("slideTemplateFile", "")
     processingOptions.setOptionValues("tempDir", None)
-
-    ######################################################################################
-    #                                                                                    #
-    # Set default, presentation and current values for some key options                  #
-    #                                                                                    #
-    ######################################################################################
 
     processingOptions.setOptionValuesArray(
         [
@@ -4905,7 +4672,6 @@ def main():
     )
 
     processingOptions.setOptionValues("baseTextSize", 18)
-
     processingOptions.setOptionValues("baseTextDecrement", 2)
 
     # Code defaults
@@ -4967,7 +4733,6 @@ def main():
 
 
     processingOptions.setOptionValues("contentSplit", [1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-
     processingOptions.setOptionValues("contentSplitDirection", "vertical")
 
     # Number of spaces a single level of indentation is
@@ -4988,12 +4753,6 @@ def main():
     )
 
     processingOptions.setOptionValues("monoFont", "Courier")
-
-    topHeadingLevel = 1
-    titleLevel = topHeadingLevel
-    sectionLevel = titleLevel + 1
-    contentLevel = sectionLevel + 1
-    cardLevel = contentLevel + 1
 
     # Abstracts defaults
     abstractTitle = processingOptions.setOptionValues("abstractTitle", "")
@@ -5048,13 +4807,6 @@ def main():
         ]
     )
 
-    global TOCEntries
-    TOCEntries = []
-
-
-    metadata = []
-
-
     # Space to leave at bottom if numbers
     global numbersHeight
     numbersHeight = Inches(0.4)
@@ -5098,44 +4850,61 @@ def main():
         ]
     )
 
-    ######################################################################################
-    #                                                                                    #
-    #  Prime for style. metadata                                                         #
-    #                                                                                    #
-    ######################################################################################
+def AutoSelectSlideTemplate(prsentation):
+    titleslidelayoutSet = False
+    sectionSlideLayoutSet = False
+    contentSlideLayoutSet = False
+    titleOnlyLayoutSet = False
+    blanklayoutSet = False
+    
+    print("Slide template names:")
+    for slide_master in prsentation.slide_masters:
+            print(prsentation.slide_master.name)
+            idx = 0
+            for slide_layout in slide_master.slide_layouts:
+                print (f"{idx} {slide_layout.name}")
+                idx += 1
+                
+                # Use the 1st suitable template
+                if "cover" in slide_layout.name.lower():
+                    if titleslidelayoutSet:
+                        processingOptions.setOptionValues("titleslidelayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        # If it's set the first time, clean default options
+                        titleslidelayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("titleslidelayout", slide_master.slide_layouts.index(slide_layout))
+                elif "divider" in slide_layout.name.lower():
+                    if sectionSlideLayoutSet:
+                        processingOptions.setOptionValues("sectionSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        sectionSlideLayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("sectionSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                elif "text" in slide_layout.name.lower():
+                    if contentSlideLayoutSet:
+                        processingOptions.setOptionValues("contentSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        contentSlideLayoutSet = True    
+                        processingOptions.changeOptionAndDefaultValues("contentSlideLayout", slide_master.slide_layouts.index(slide_layout))
+                elif "title" in slide_layout.name.lower(): 
+                    if titleOnlyLayoutSet:
+                        processingOptions.setOptionValues("titleOnlyLayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        titleOnlyLayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("titleOnlyLayout", slide_master.slide_layouts.index(slide_layout))
+                elif "blank" in slide_layout.name.lower(): 
+                    if blanklayoutSet:
+                        processingOptions.setOptionValues("blanklayout", slide_master.slide_layouts.index(slide_layout))
+                    else:
+                        blanklayoutSet = True
+                        processingOptions.changeOptionAndDefaultValues("blanklayout", slide_master.slide_layouts.index(slide_layout))
 
-    # Background colour class correspondence
-    global bgcolors
-    bgcolors = {}
+    # May have problem for new template
+    processingOptions.setOptionValues("adjustTitles", False)
 
-    # Foreground colour class correspondence
-    global fgcolors
-    fgcolors = {}
-
-    # Emphases class correspondence
-    global emphases
-    emphases = {}
-
-    ######################################################################################
-    #                                                                                    #
-    #  Prime for footnotes                                                               #
-    #                                                                                    #
-    ######################################################################################
-
-    # List of footnote definitions. Each is a (ref, text) pair.
-    # Also array of names - for quick searching
-    global footnoteDefinitions, footnoteReferences
-    footnoteDefinitions = []
-    footnoteReferences = []
-
-    global maxBlocks
-    maxBlocks = 10
-
-    ######################################################################################
-    #                                                                                    #
-    #  Parse metadata and report on the items found, setting options                     #
-    #                                                                                    #
-    ######################################################################################
+def setOptionByMetadata(metadata_lines):
+    global metadata
+    metadataRegex = re.compile("^(.+):(.+)")
+    metadata = []
 
     if len(metadata_lines) > 0:
         print("")
@@ -5602,6 +5371,263 @@ def main():
                     f'funnelLabelPosition value \'{value}\' unsupported. "left", "right", "pipe", or "hpipe" required.'
                 )
 
+
+def main():
+
+    start_time = time.time()
+
+    Starting_info()
+    
+    global processingOptions
+    processingOptions = ProcessingOptions()
+
+    input_file = []
+    if len(sys.argv) > 2:
+        # Have input file as well as output file
+        input_filename = sys.argv[1]
+        output_filename = sys.argv[2]
+
+        if Path(input_filename).exists():
+            input_path = Path(input_filename)
+            with input_path.open(encoding="utf-8") as file:
+                input_file = file.readlines()
+        else:
+            print(f"Input file:{input_filename} specified but does not exist. Terminating.")
+    elif len(sys.argv) == 1:
+        print("No parameters. Terminating")
+        sys.exit()
+    else:
+        output_filename = sys.argv[1]
+        input_file = sys.stdin.readlines()
+
+    if len(input_file) == 0:
+        print("Empty input file. Terminating")
+        sys.exit()
+
+    slideNumber = 1
+
+    global clickableGraphicRegex
+    bulletRegex_star = re.compile("^(\s)*(\*)(.*)")
+    bulletRegex_minus = re.compile("^(\s)*(-)(.*)")
+    numberRegex = re.compile("^(\s)*(\d+)\.(.*)")
+    
+
+    graphicRE = "!\[(.*?)\]\((.+?)\)"
+    graphicRegex = re.compile(graphicRE)
+
+    clickableGraphicRE = "\[" + graphicRE + "\]\((.+?)\)"
+    clickableGraphicRegex = re.compile(clickableGraphicRE)
+
+    videoRE = "<video (.*?)></video>"
+    videoRegex = re.compile(videoRE)
+
+    audioRE = "<audio (.*?)></audio>"
+    audioRegex = re.compile(audioRE)
+
+    global linkRegex, slideHrefRegex, spanClassRegex, spanStyleRegex,indirectReferenceUsageRegex
+
+    linkRegex = re.compile("^\[(.+)\]\((.+)\)")
+    footnoteDefinitionRegex = re.compile("^\[\^(.+?)\]: (.+)")
+    spanClassRegex = re.compile("<span( )*class=")
+    spanStyleRegex = re.compile("<span( )*style=")
+    slideHrefRegex = re.compile("(.+)\[(.+)\]$")
+    anchorRegex = re.compile("^<a id=[\"'](.+)[\"']></a>")
+    dynamicMetadataRegex = re.compile("^<!-- md2pptx: (.+): (.+) -->")
+    indirectReferenceAnchorRegex = re.compile("^\[(.+?)\]: (.+)")
+    indirectReferenceUsageRegex = re.compile("[(.+?)]\[(.+?)]")
+
+    # Default slide layout enumeration
+    processingOptions.setOptionValuesArray(
+        [
+            ["titleSlideLayout", 0],
+            ["sectionSlideLayout", 1],
+            ["contentSlideLayout", 2],
+            ["titleOnlyLayout", 5],
+            ["blanklayout", 6],
+        ]
+    )
+
+    global abbrevDictionary, abbrevRunsDictionary, footnoteRunsDictionary
+
+    # Abbreviation Dictionary
+    abbrevDictionary = {}
+
+    # Abbreviation Runs Dictionary
+    abbrevRunsDictionary = {}
+
+    # Footnote runs Dictionary
+    footnoteRunsDictionary = {}
+
+    # Extract metadata
+    metadata_lines = []
+    afterMetadataAndHTML = []
+
+    TOCruns = []
+    SectionSlides = {}
+
+    inMetadata = True
+    in_comment = False
+    inHTML = False
+    inCode = False
+
+    # Pass 1: Strip out comments and metadata, storing the latter
+    # Use config.md file as defalut value
+    # Later to use parameter from UI to cover this default value
+    if Path("config.md").exists():
+        with Path("config.md").open(encoding="utf-8") as f:
+            cfg_file = f.readlines()
+    else:
+        print("Config.md file does not exist. Terminating.")
+
+    # load configuration
+    for line in cfg_file:
+        if line.lstrip().startswith("<!--"):
+            if line.rstrip().endswith("-->"):
+                # Note: Not taking text after end of comment
+                continue
+            else:
+                in_comment = True
+                continue
+
+        elif line.rstrip().endswith("-->"):
+            # Note: Not taking text after end of comment
+            in_comment = False
+            continue
+
+        elif in_comment is True:
+            continue
+
+        if inMetadata is True:
+            # Line goes to metadata array
+            metadata_lines.append(line)
+
+    for line in input_file:
+        if line.lstrip().startswith("<!-- md2pptx: "):
+            # md2pptx dynamic metadata so keep it
+            afterMetadataAndHTML.append(line)
+
+        if line.lstrip().startswith("<!--"):
+            if line.rstrip().endswith("-->"):
+                # Note: Not taking text after end of comment
+                continue
+            else:
+                in_comment = True
+                continue
+
+        elif line.rstrip().endswith("-->"):
+            # Note: Not taking text after end of comment
+            in_comment = False
+            continue
+
+        elif in_comment is True:
+            continue
+
+        elif (line.lstrip()[:1] == "<") & (inCode is False):
+            lineLstrip = line.lstrip()
+            if startswithOneOf(lineLstrip, ["<a id=", "<span "]):
+                # Line goes to post-metadata array
+                afterMetadataAndHTML.append(line)
+
+            elif startswithOneOf(lineLstrip, ["<code>", "<pre>"]):
+                inCode = True
+                afterMetadataAndHTML.append(line)
+
+            elif startswithOneOf(lineLstrip, ["</code>", "</pre>"]):
+                inCode = False
+                afterMetadataAndHTML.append(line)
+
+            elif startswithOneOf(lineLstrip, ["<video ", "<audio "]):
+                # Line goes to post-metadata array
+                afterMetadataAndHTML.append(line)
+
+            else:
+                inHTML = True
+
+            continue
+
+        elif line.startswith("```"):
+            inCode = ~inCode
+            # afterMetadataAndHTML.append(line)
+
+        elif line.lstrip()[:1] == "#":
+            # Heading has triggered end of metadata and end of HTML
+            inMetadata = False
+            inHTML = False
+
+        elif inHTML:
+            continue
+
+        elif inCode:
+            afterMetadataAndHTML.append(line)
+            continue
+
+        elif line == "\n":
+            # Blank line has triggered end of metadata
+            inMetadata = False
+
+        if inMetadata is True:
+            # Line goes to metadata array
+            metadata_lines.append(line)
+
+        else:
+            # Line goes to post-metadata array
+            afterMetadataAndHTML.append(line)
+
+    global want_numbers_headings, want_numbers_content
+    want_numbers_headings = False
+    want_numbers_content = False
+
+    setDefaultOptions(processingOptions)
+
+    global TOCEntries
+    TOCEntries = []
+  
+    topHeadingLevel = 1
+    titleLevel = topHeadingLevel
+    sectionLevel = titleLevel + 1
+    contentLevel = sectionLevel + 1
+    cardLevel = contentLevel + 1
+
+    ######################################################################################
+    #                                                                                    #
+    #  Prime for style. metadata                                                         #
+    #                                                                                    #
+    ######################################################################################
+
+    # Background colour class correspondence
+    global bgcolors
+    bgcolors = {}
+
+    # Foreground colour class correspondence
+    global fgcolors
+    fgcolors = {}
+
+    # Emphases class correspondence
+    global emphases
+    emphases = {}
+
+    ######################################################################################
+    #                                                                                    #
+    #  Prime for footnotes                                                               #
+    #                                                                                    #
+    ######################################################################################
+
+    # List of footnote definitions. Each is a (ref, text) pair.
+    # Also array of names - for quick searching
+    global footnoteDefinitions, footnoteReferences
+    footnoteDefinitions = []
+    footnoteReferences = []
+
+    global maxBlocks
+    maxBlocks = 10
+
+    ######################################################################################
+    #                                                                                    #
+    #  Parse metadata and report on the items found, setting options                     #
+    #                                                                                    #
+    ######################################################################################
+    setOptionByMetadata(metadata_lines)
+
     slideTemplateFile = processingOptions.getCurrentOption("slideTemplateFile")
     if slideTemplateFile != "":
         originalSlideTemplateFile = slideTemplateFile
@@ -5664,7 +5690,7 @@ def main():
     inTitle = False
 
 
-    global notes_text
+    global notes_text, cards
 
     blockType = ""
     slideTitle = ""
@@ -5685,6 +5711,7 @@ def main():
     href_runs = {}
 
     # Each of these is a picture, then a href, then a tooltip - as a tuple
+    global pictureInfos
     pictureInfos = []
 
     # Pass 2: Concatenate lines with continuations
@@ -6764,7 +6791,6 @@ def main():
     script = ""
     for slide in prs.slides:
         exec(script)
-
 
     sys.exit()
 
