@@ -1050,13 +1050,20 @@ def renderText(shape, bullets):
 def findTitleShape(slide):
     if slide.shapes.title == None:
         # Have to use first shape as title
-        return slide.shapes[0]
+        if len(slide.shapes) > 1:
+            return slide.shapes[0]
+        else:
+            # Slide has no shape, need to add error handling which is calling this function
+            return None
     else:
         return slide.shapes.title
+    
 
 
 def findBodyShape(slide):
-    if len(slide.shapes) > 1:
+    if len(slide.shapes) > 2:
+        return slide.shapes[2]
+    elif len(slide.shapes) > 1:
         return slide.shapes[1]
     elif slide.shapes.title == None:
         return slide.shapes[0]
@@ -1951,8 +1958,6 @@ def createTitleOrSectionSlide(
 ):
     marginBase = processingOptions.getCurrentOption("marginBase")
 
-    layout=1
-
     slide = addSlide(presentation, presentation.slide_layouts[layout], None)
 
     # Add title
@@ -2517,7 +2522,7 @@ def createAbstractSlide(presentation, slideNumber, titleText, paragraphs):
 # Unified creation of a table or a code or a content slide
 def createContentSlide(presentation, slideNumber, slideInfo):
     titleOnlyLayout = processingOptions.getCurrentOption("titleOnlyLayout")
-    contentSlideLayout = processingOptions.getCurrentOption("contentSlideLayout")
+    contentSlideLayout = processingOptions.getFirstCurrentOption("contentSlideLayout")
     marginBase = processingOptions.getCurrentOption("marginBase")
     pageTitleSize = processingOptions.getCurrentOption("pageTitleSize")
     pageSubtitleSize = processingOptions.getCurrentOption("pageSubtitleSize")
@@ -4155,7 +4160,7 @@ def createSlide(presentation, slideNumber, slideInfo):
                 presentation,
                 slideNumber,
                 slideInfo.titleText,
-                processingOptions.getCurrentOption("sectionSlideLayout"),
+                processingOptions.getFirstCurrentOption("sectionSlideLayout"),
                 sectionTitleSize,
                 slideInfo.subtitleText,
                 sectionSubtitleSize,
@@ -4167,7 +4172,7 @@ def createSlide(presentation, slideNumber, slideInfo):
             presentation,
             slideNumber,
             slideInfo.titleText,
-            processingOptions.getCurrentOption("titleSlideLayout"),
+            processingOptions.getRandomCurrentOption("titleSlideLayout"),
             presTitleSize,
             slideInfo.subtitleText,
             presSubtitleSize,
@@ -4671,8 +4676,8 @@ def AutoSelectSlideTemplate(prsentation):
                         blanklayoutSet = True
                         processingOptions.changeOptionAndDefaultValues("blanklayout", slide_master.slide_layouts.index(slide_layout))
 
-    print(processingOptions.currentOptions)
-    print(processingOptions.defaultOptions)
+    # May have problem for new template
+    processingOptions.setOptionValues("adjustTitles", False)
 
 def main():
 
