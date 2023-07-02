@@ -5372,7 +5372,7 @@ def setOptionByMetadata(metadata_lines):
                 )
 
 
-def main():
+def convert(inputFileName="NULL") -> str:
 
     start_time = time.time()
 
@@ -5380,29 +5380,29 @@ def main():
     
     global processingOptions
     processingOptions = ProcessingOptions()
+    output_filename = f"./tmp/tmp{datetime.datetime.now().strftime('%Y-%m-%d_%H_%M_%S')}.pptx"
 
     input_file = []
-    if len(sys.argv) > 2:
-        # Have input file as well as output file
-        input_filename = sys.argv[1]
-        output_filename = sys.argv[2]
-
-        if Path(input_filename).exists():
-            input_path = Path(input_filename)
-            with input_path.open(encoding="utf-8") as file:
-                input_file = file.readlines()
+    if inputFileName=="NULL":
+        if len(sys.argv) > 1:
+            # Have input file as well as output file
+            input_filename = sys.argv[1]
         else:
-            print(f"Input file:{input_filename} specified but does not exist. Terminating.")
-    elif len(sys.argv) == 1:
-        print("No parameters. Terminating")
-        sys.exit()
+            print("No parameters. Terminating")
+            return None
     else:
-        output_filename = sys.argv[1]
-        input_file = sys.stdin.readlines()
+        input_filename = inputFileName
+    
+    if Path(input_filename).exists():
+        input_path = Path(input_filename)
+        with input_path.open(encoding="utf-8") as file:
+            input_file = file.readlines()
+    else:
+        print(f"Input file:{input_filename} specified but does not exist. Terminating.")
 
     if len(input_file) == 0:
         print("Empty input file. Terminating")
-        sys.exit()
+        return None
 
     slideNumber = 1
 
@@ -5642,7 +5642,7 @@ def main():
                 print(
                     f"\nTemplate file {originalSlideTemplateFile} does not exist. Terminating."
                 )
-                sys.exit()
+                return None
 
         print(f"\nUsing {slideTemplateFile} as base for presentation")
 
@@ -6792,7 +6792,7 @@ def main():
     for slide in prs.slides:
         exec(script)
 
-    sys.exit()
+    return output_filename
 
 if __name__ == "__main__":
-    main()
+    convert()
