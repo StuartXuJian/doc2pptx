@@ -17,6 +17,7 @@ from langchain.prompts import (
 )
 
 from mdr2pptx import convert
+import traceback
 
 ## configuration files, which to be put into a separated file
 
@@ -80,7 +81,9 @@ def formatMD(inputStr:str)->str:
         elif line.startswith("##### "):
             # #####强制改成无序列表
             outputLines += line.replace("#####", "    *")
-
+        elif line.startswith("``"):
+            # Drop unnecessary ```
+            continue
         elif line.startswith("## "):
             # 当下一级直接是无序列表或者有序列表时，强制改为三级content
             nextLine = lines[i+1]
@@ -107,13 +110,13 @@ def update_ui(chatbot, history, downloadFiles=None, msg='Normal', **kwargs):  # 
 def new_predict(txt, chatbot, history):
     
     history.append(txt)
-    chatbot.append([txt,"PPT is generating by AI......\nPlease wait a moment, usually requires 10-40 seconds. \nIf you haven't got response in 1min, usually it stucks.\n- Refresh the page and try again in this case."])
-    yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
+    chatbot.append([txt,"PPT is generating by AI......\n\nWait a moment, usually 20~40 seconds. \n\nIf no response in 3mins, refresh the page and try again."])
+    yield from update_ui(chatbot=chatbot, history=history, msg="Generating") # 刷新界面
 
     prompt = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(
             '''Please reply always using unrendered markdown format in a code block (代码段), which format is using a pair of ```. 
-            It's a must for you to use all 3 levels headings, and content list under the 3rd level headings, by using a pair of ```. 
+            It's a must for you to use all 3 levels headings, and content list or even sub list under the 3rd level headings, by using a pair of ```. 
             Just the code, no other explanations.
             Here is basic grammar for markdown you need to use:
             Headings: Use '#' to indicate headings, and the number of '#' represents the heading level. One '#' is used for the first-level heading, two '#' for the second-level heading, and so on.
@@ -124,8 +127,12 @@ def new_predict(txt, chatbot, history):
             ## Section
             ### Subsection
             * Content
+                - Explaination
+                - Description
             * Content 
             * Content
+                - Explaination
+                - Description
             ### Subsection
             * Content
             ## Section
@@ -150,19 +157,25 @@ def new_predict(txt, chatbot, history):
         os.environ["https_proxy"] = "http://10.144.1.10:8080"
 
     langchain.debug = False
-    llm = ChatOpenAI(temperature=0, openai_api_base=api_base, openai_api_key=API_KEY)
-    memory = ConversationBufferMemory(return_messages=True)
-    conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
-    print(f"User input: {txt}")
-    gpt_says = conversation.predict(input=txt)
-    print(gpt_says)
-    MarkdownFileName = putMDtofile(gpt_says)
+    fileDownload = None
 
-    fileDownload = convert(MarkdownFileName)
-    if fileDownload == None or "":
-        gpt_says = "PPT generated Failed, please contact with tool provider to fix. Sorry for that as a new tool..."
-    else:
-        gpt_says = f"PPT generated, you can download it in bottom right corner: \n\n" + gpt_says
+    try:
+        llm = ChatOpenAI(temperature=0, openai_api_base=api_base, openai_api_key=API_KEY)
+        memory = ConversationBufferMemory(return_messages=True)
+        conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
+        print(f"User input: {txt}")
+        gpt_says = conversation.predict(input=txt)
+        print(gpt_says)
+        MarkdownFileName = putMDtofile(gpt_says)
+
+        fileDownload = convert(MarkdownFileName)
+        if fileDownload == None or "":
+            gpt_says = "PPT generated Failed, please contact with tool provider to fix. Sorry for that as a new tool..."
+        else:
+            gpt_says = f"PPT generated, you can download it in bottom right corner: \n\n" + gpt_says
+    except Exception as e:
+        gpt_says = "```" + traceback.format_exc() + "```"
+        print(gpt_says)
 
     history.append(gpt_says)
     chatbot[-1]=[history[-2], history[-1]]
@@ -173,8 +186,7 @@ def new_predict(txt, chatbot, history):
 def main():
     title = "PPTX generator"
 
-    title_html = f"<h1 align=\"center\">{title}</h1>"
-    "<h3 align=\"center\" style=\"font-weight: bold; color: red;\">Notice: Make sure no private data input -- data will be transferred to LLM(e.g. chatGPT) </h3>"
+    title_html = f"<h1 align=\"center\">{title}</h1><h3 align=\"center\" style=\"font-weight: bold; color: red;\">Notice: Make sure no private data input -- data will be transferred to LLM(e.g. chatGPT) </h3>"
     
     with gr.Blocks(title=f"{title}", analytics_enabled=False) as index:
         gr.HTML(title_html)
