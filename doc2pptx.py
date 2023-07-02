@@ -3,6 +3,8 @@ import os;
 
 import gradio as gr
 import langchain
+import re
+import datetime
 
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
@@ -42,6 +44,44 @@ CONCURRENT_COUNT = 100
 
 # 设置是否用FreeGPT
 FREEGPT_INUSE = True
+
+# 从GPT返回的内容中提取Markdown的内容
+def extractMarkDownContent(inputStr:str)->str:
+    pattern = r'^```(.*?)```$'
+    match = re.search(pattern, inputStr, re.MULTILINE)
+    if match:
+        # 输入的字符串中有代码段
+        return match.group(1)
+    else:
+        # 输入的字符串中没有代码段，以#开头获取后面所有内容作为markdown内容
+        patternMD = r'^#.*$'
+        outputMD = re.findall(patternMD, inputStr, re.MULTILINE)
+        return outputMD
+
+# 强行将GPT生成的Markdown内容和要转换的格式对齐
+def formatMD(inputStr:str)->str:
+    lines = inputStr.split('\n')
+    outputLines = ""
+    for line in lines:
+        print(line)
+        if line.startswith("####"):
+            # ####强制改成无序列表
+            line.replace("####", "*")
+        elif line.startswith("#####"):
+            # #####强制改成无序列表
+            line.replace("#####", "    *")
+        outputLines.extend(line)
+        outputLines.extend("\n")
+    return outputLines
+
+def putMDtofile(inputStr:str)->str:
+    formatedStr = formatMD(inputStr)
+    outputfile = f"./tmp/tmp{datetime.datetime.now().strftime('%Y-%m-%d_%H_%M_%S')}.md"
+
+    with open(outputfile, "w", encoding="utf-8") as f:
+        f.write(formatedStr)
+    return outputfile
+
 
 def update_ui(chatbot, history, msg='Normal', **kwargs):  # 刷新界面
     yield chatbot, history, msg, ""
@@ -99,7 +139,7 @@ def new_predict(txt, chatbot, history):
     print(f"User input: {txt}")
     gpt_says = conversation.predict(input=txt)
     print(gpt_says)
-    
+    MarkdownFileName = putMDtofile(gpt_says)
 
     history.append(gpt_says)
     chatbot[-1]=[history[-2], history[-1]]
