@@ -1,9 +1,10 @@
-import os; os.environ['no_proxy'] = '*' # 避免代理网络产生意外污染
+import os; 
+# os.environ['no_proxy'] = '*' # 避免代理网络产生意外污染
 
 import gradio as gr
 import langchain
-import datetime
 import re
+import datetime
 
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
@@ -21,22 +22,7 @@ from langchain.prompts import (
 API_KEY = "sk-K2dwXy8hX5IHItiAZS1Ik7hNSEiGxR5AE2GTF71q9WffwSE4"    # 可同时填写多个API-KEY，用英文逗号分割，例如API_KEY = "sk-openaikey1,sk-openaikey2,fkxxxx-api2dkey1,fkxxxx-api2dkey2"
 
 # [step 2]>> 改为True应用代理，如果直接在海外服务器部署，此处不修改
-USE_PROXY = False
-if USE_PROXY:
-    # 填写格式是 [协议]://  [地址] :[端口]，填写之前不要忘记把USE_PROXY改成True，如果直接在海外服务器部署，此处不修改
-    # 例如    "socks5h://localhost:11284"
-    # [协议] 常见协议无非socks5h/http; 例如 v2**y 和 ss* 的默认本地协议是socks5h; 而cl**h 的默认本地协议是http
-    # [地址] 懂的都懂，不懂就填localhost或者127.0.0.1肯定错不了（localhost意思是代理软件安装在本机上）
-    # [端口] 在代理软件的设置里找。虽然不同的代理软件界面不一样，但端口号都应该在最显眼的位置上
-
-    # 代理网络的地址，打开你的*学*网软件查看代理的协议(socks5/http)、地址(localhost)和端口(11284)
-    proxies = {
-        #          [协议]://  [地址]  :[端口]
-        "http": "http://10.144.1.10:8080",
-        "https": "http://10.144.1.10:8080",
-    }
-else:
-    proxies = None
+USE_PROXY = True
 
 # 对话窗的高度
 CHATBOT_HEIGHT = 600
@@ -125,9 +111,29 @@ def new_predict(txt, chatbot, history):
 
     prompt = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(
-            '''Please reply always using markdown format in a code block inside two ```. 
-            Reply using from 1st to 3rd levels headings and content under the 3rd level headings. 
-            Just the code, no other explanations are required.'''
+            '''Please reply always using unrendered markdown format in a code block (代码段), which format is using a pair of ```. 
+            It's a must for you to use all 3 levels headings, and content list under the 3rd level headings, by using a pair of ```. 
+            Just the code, no other explanations.
+            Here is basic grammar for markdown you need to use:
+            Headings: Use '#' to indicate headings, and the number of '#' represents the heading level. One '#' is used for the first-level heading, two '#' for the second-level heading, and so on.
+            Lists: Use '*' or '-' to represent unordered lists, and use numbers followed by a period to represent ordered lists.
+            Output format example:
+            ```
+            # Title
+            ## Section
+            ### Subsection
+            * Content
+            * Content 
+            * Content
+            ### Subsection
+            * Content
+            ## Section
+            ### Subsection
+            * Content
+            * Content 
+            * Content
+            ```
+            '''
         ),
         MessagesPlaceholder(variable_name="history"),
         HumanMessagePromptTemplate.from_template("{input}")
@@ -138,9 +144,12 @@ def new_predict(txt, chatbot, history):
     else:
         api_base = "https://api.openai.com/v1/"
 
+    if USE_PROXY:
+        os.environ["http_proxy"] = "http://10.144.1.10:8080"
+        os.environ["https_proxy"] = "http://10.144.1.10:8080"
 
     langchain.debug = True
-    llm = ChatOpenAI(temperature=0, openai_api_base=api_base, openai_api_key=API_KEY, proxies=proxies)
+    llm = ChatOpenAI(temperature=0, openai_api_base=api_base, openai_api_key=API_KEY)
     memory = ConversationBufferMemory(return_messages=True)
     conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
     print(f"User input: {txt}")
@@ -183,7 +192,6 @@ def main():
                 with gr.Row():
                     status = gr.Markdown(f"Tips: Submit with \"Enter\" directly, new line with \"Shift+Enter\"。")
 
-        
         # 整理反复出现的控件句柄组合
         input_combo = [txt, chatbot, history]
         output_combo = [chatbot, history, status, txt]
