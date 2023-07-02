@@ -70,20 +70,36 @@ def extractMarkDownContent(inputStr:str)->str:
         # 输入的字符串中没有代码段，以#开头获取后面所有内容作为markdown内容
         patternMD = r'^#.*$'
         outputMD = re.findall(patternMD, inputStr, re.MULTILINE)
-        return outputMD
+        if outputMD == []:
+            return ""
+        else:
+            return outputMD.group(1)
 
 # 强行将GPT生成的Markdown内容和要转换的格式对齐
 def formatMD(inputStr:str)->str:
     lines = inputStr.split('\n')
     outputLines = ""
-    for line in lines:
+
+    print(f"formatMD:{inputStr}")
+    if inputStr == "":
+        return ""
+
+    for i, line in enumerate(lines):
         print(line)
-        if line.startswith("####"):
+        if line.startswith("#### "):
             # ####强制改成无序列表
             line.replace("####", "*")
-        elif line.startswith("#####"):
+
+        elif line.startswith("##### "):
             # #####强制改成无序列表
             line.replace("#####", "    *")
+
+        elif line.startswith("## "):
+            # 当下一级直接是无序列表或者有序列表时，强制改为三级content
+            nextLine = lines[i+1]
+            if(nextLine.startswith("-") or nextLine.startswith("*") or nextLine.startswith("1.") or nextLine.startswith("+")):
+                line.replace("##", "###")
+
         outputLines.extend(line)
         outputLines.extend("\n")
     return outputLines
