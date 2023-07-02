@@ -5380,7 +5380,7 @@ def convert(inputFileName="NULL") -> str:
     
     global processingOptions
     processingOptions = ProcessingOptions()
-    output_filename = f"./tmp/tmp{datetime.datetime.now().strftime('%Y-%m-%d_%H_%M_%S')}.pptx"
+    output_filename = f"./tmp/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pptx"
 
     input_file = []
     if inputFileName=="NULL":

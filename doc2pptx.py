@@ -16,13 +16,15 @@ from langchain.prompts import (
     HumanMessagePromptTemplate 
 )
 
+from mdr2pptx import convert
+
 ## configuration files, which to be put into a separated file
 
 # [step 1]>> 例如： API_KEY = "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" （此key无效）
 API_KEY = "sk-K2dwXy8hX5IHItiAZS1Ik7hNSEiGxR5AE2GTF71q9WffwSE4"    # 可同时填写多个API-KEY，用英文逗号分割，例如API_KEY = "sk-openaikey1,sk-openaikey2,fkxxxx-api2dkey1,fkxxxx-api2dkey2"
 
 # [step 2]>> 改为True应用代理，如果直接在海外服务器部署，此处不修改
-USE_PROXY = True
+USE_PROXY = False
 
 # 对话窗的高度
 CHATBOT_HEIGHT = 600
@@ -66,47 +68,46 @@ def formatMD(inputStr:str)->str:
     lines = inputStr.split('\n')
     outputLines = ""
 
-    print(f"formatMD:{inputStr}")
     if inputStr == "":
         return ""
 
     for i, line in enumerate(lines):
-        print(line)
+        print(f"line:{line}")
         if line.startswith("#### "):
             # ####强制改成无序列表
-            line.replace("####", "*")
+            outputLines += line.replace("####", "*")
 
         elif line.startswith("##### "):
             # #####强制改成无序列表
-            line.replace("#####", "    *")
+            outputLines += line.replace("#####", "    *")
 
         elif line.startswith("## "):
             # 当下一级直接是无序列表或者有序列表时，强制改为三级content
             nextLine = lines[i+1]
             if(nextLine.startswith("-") or nextLine.startswith("*") or nextLine.startswith("1.") or nextLine.startswith("+")):
-                line.replace("##", "###")
-
-        outputLines.extend(line)
-        outputLines.extend("\n")
+                outputLines += line.replace("##", "###")
+        else:
+            outputLines += line
+        outputLines += "\n"
     return outputLines
 
 def putMDtofile(inputStr:str)->str:
     formatedStr = formatMD(inputStr)
-    outputfile = f"./tmp/tmp{datetime.datetime.now().strftime('%Y-%m-%d_%H_%M_%S')}.md"
+    outputfile = f"./tmp/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.md"
 
     with open(outputfile, "w", encoding="utf-8") as f:
         f.write(formatedStr)
     return outputfile
 
 
-def update_ui(chatbot, history, msg='Normal', **kwargs):  # 刷新界面
-    yield chatbot, history, msg, ""
+def update_ui(chatbot, history, downloadFiles=None, msg='Normal', **kwargs):  # 刷新界面
+    yield chatbot, history, downloadFiles, msg, ""
 
 
 def new_predict(txt, chatbot, history):
     
     history.append(txt)
-    chatbot.append([txt,"GPT思考中......请给它一点时间思考"])
+    chatbot.append([txt,"PPT is generating by AI......\nPlease wait a moment, usually requires 10-40 seconds. \nIf you haven't got response in 1min, usually it stucks.\n- Refresh the page and try again in this case."])
     yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
 
     prompt = ChatPromptTemplate.from_messages([
@@ -148,7 +149,7 @@ def new_predict(txt, chatbot, history):
         os.environ["http_proxy"] = "http://10.144.1.10:8080"
         os.environ["https_proxy"] = "http://10.144.1.10:8080"
 
-    langchain.debug = True
+    langchain.debug = False
     llm = ChatOpenAI(temperature=0, openai_api_base=api_base, openai_api_key=API_KEY)
     memory = ConversationBufferMemory(return_messages=True)
     conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
@@ -157,10 +158,16 @@ def new_predict(txt, chatbot, history):
     print(gpt_says)
     MarkdownFileName = putMDtofile(gpt_says)
 
+    fileDownload = convert(MarkdownFileName)
+    if fileDownload == None or "":
+        gpt_says = "PPT generated Failed, please contact with tool provider to fix. Sorry for that as a new tool..."
+    else:
+        gpt_says = f"PPT generated, you can download it in bottom right corner: \n\n" + gpt_says
+
     history.append(gpt_says)
     chatbot[-1]=[history[-2], history[-1]]
     
-    yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
+    yield from update_ui(chatbot=chatbot, history=history, downloadFiles=fileDownload) # 刷新界面
 
 
 def main():
@@ -175,7 +182,7 @@ def main():
 
         cancel_handles = []
         with gr.Row().style():
-            chatbot = gr.Chatbot(label=f"LLM：{LLM_MODEL}")
+            chatbot = gr.Chatbot(label=f"LLM:{LLM_MODEL}")
             chatbot.style(height=CHATBOT_HEIGHT)
             history = gr.State([])
         with gr.Row().style():
@@ -191,16 +198,17 @@ def main():
                     clearBtn = gr.Button("Clear", variant="secondary", visible=True); clearBtn.style(size="sm")
                 with gr.Row():
                     status = gr.Markdown(f"Tips: Submit with \"Enter\" directly, new line with \"Shift+Enter\"。")
+            downloadFiles = gr.File()
 
         # 整理反复出现的控件句柄组合
         input_combo = [txt, chatbot, history]
-        output_combo = [chatbot, history, status, txt]
+        output_combo = [chatbot, history, downloadFiles, status, txt]
 
         predict_args = dict(fn=new_predict, inputs=input_combo, outputs=output_combo)
         # 提交按钮、重置按钮
         cancel_handles.append(txt.submit(**predict_args))
         cancel_handles.append(submitBtn.click(**predict_args))
-        resetBtn.click(lambda: ([], [], "Session Reseted"), None, [chatbot, history, status])
+        resetBtn.click(lambda: ([], [], "Session Reseted", None), None, [chatbot, history, status, downloadFiles])
         clearBtn.click(lambda: ("", "Input Cleared"), None, [txt, status])
         # 终止按钮的回调函数注册
         stopBtn.click(fn=None, inputs=None, outputs=None, cancels=cancel_handles)
@@ -210,8 +218,6 @@ def main():
         server_name="0.0.0.0", server_port=WEB_PORT,
         favicon_path="docs/logo.png",
         blocked_paths=["config.md"])
-
-
 
 if __name__ == "__main__":
     main()

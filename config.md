@@ -1,4 +1,4 @@
-template: Ne Template.pptx
+template: ./tmp/Defalut template.pptx
 pageTitleSize: 22
 sectionTitleSize: 30
 baseTextSize: 22
