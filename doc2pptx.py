@@ -73,7 +73,6 @@ def formatMD(inputStr:str)->str:
         return ""
 
     for i, line in enumerate(lines):
-        print(f"line:{line}")
         if line.startswith("#### "):
             # ####强制改成无序列表
             outputLines += line.replace("####", "*")

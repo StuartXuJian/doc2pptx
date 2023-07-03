@@ -5796,6 +5796,7 @@ def convert(inputFileName="NULL") -> str:
 
     # Pass 4: Extract any indirect reference anchors
     metadataLinenumber = 0
+    global indirectAnchors
     indirectAnchors = []
     for line in linesAfterConcatenation:
         line = line.rstrip()
