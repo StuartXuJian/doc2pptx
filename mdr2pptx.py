@@ -1076,7 +1076,7 @@ def renderText(shape, bullets):
 def findTitleShape(slide):
     if slide.shapes.title == None:
         # Have to use first shape as title
-        if len(slide.shapes) > 1:
+        if len(slide.shapes) >= 1:
             return slide.shapes[0]
         else:
             # Slide has no shape, need to add error handling which is calling this function

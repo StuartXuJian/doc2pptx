@@ -151,8 +151,8 @@ def new_predict(txt, chatbot, history):
         api_base = "https://api.openai.com/v1/"
 
     if USE_PROXY:
-        os.environ["http_proxy"] = "http://10.144.1.10:8080"
-        os.environ["https_proxy"] = "http://10.144.1.10:8080"
+        os.environ["http_proxy"] = ""
+        os.environ["https_proxy"] = ""
 
     langchain.debug = False
     fileDownload = None
