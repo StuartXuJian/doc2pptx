@@ -1,21 +1,18 @@
 # Doc2pptx
 
-<p align="center">
-   🌐 一个PPT初始化小工具[Doc2pptx]</a> <a href="https://github.com/StuartXuJian/doc2pptx" target="_blank">[GitHub]</a> <br>
-</p>
 
-*Read this in [English](README_en.md).*
-
-要解决的用户痛点：
-
-- 作为管理者，通常我会被要求为某人(例如我的老板或团队成员)创建报告，PPTX通常是一个很好的结构化方式来展示我的想法。但是，用格式编写PPTX是很枯燥的。在报告结束后，我还被期望创建一个Yammer来发布更多信息。
-- 作为培训师，我对于使用收集到的数据和将我的思想结构化以满足特定受众的需求来创建PPTX感到厌烦。
+Painpoint to be resolved with this tool:
+- As a manager, usually I'm asked to create report to someone (e.g. my Boss, my team), and usually PPTX is a good solution to present my idea in structure. However it's quite boring to write PPTX with format. Right after the report, I'm also expected to create a yammer to publish more information.
+- As a trainer, I'm boring to create a PPTX with collected data,  and strucuture my thinking to specific audiances.
 
 
-方案：
 
-- 将所有材料放入LLM中，并期望它能生成Markdown的论文大纲。
-- 将Markdown转换为PPTX。
+Idea:
+1. Put all material to LLM, and expect it to create the essay outline in Markdown.
+2. Convert Markdown to PPTX.
+
+
+
 
 
 
